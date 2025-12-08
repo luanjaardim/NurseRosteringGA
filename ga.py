@@ -3,6 +3,53 @@ import random
 import numpy as np
 random.seed(42)
 
+class ScheduleDay:
+    def __init__(self, shifts_requirements : list[int], staff_limit):
+        self.shifts_limits = shifts_requirements
+        self.workers_num = sum(shifts_requirements)
+        self.staff_limit = staff_limit
+        assert(self.workers_num <= self.staff_limit)
+        self.gene = np.random.permutation(self.staff_limit)[:self.workers_num]
+
+    def __str__(self):
+        return f'(ScheduleDay {self.shifts_limits}) : {self.gene}'
+
+    def crossover_cycle(self, p1, p2):
+        pass
+
+    def crossover_order(self, p1, p2):
+        from random import randint
+        assert(len(p1.gene) == len(p2.gene))
+        limit = len(p1.gene)
+        lower = randint(0, limit-1)
+        upper = randint(lower + 1, limit)
+        c1 = self.__init__(p1.shifts_limits, p1.staff_limit)
+        c1.gene = np.copy(p1)
+        c2 = self.__init__(p2.shifts_limits, p2.staff_limit)
+        c2.gene = np.copy(p2)
+
+        # TODO change c1 and c2 genes and return them
+
+        return (c1, c2)
+
+
+class Schedule:
+    def __init__(self, data):
+        """ Create a random candidate solution. """
+        day = 0
+        shifts_lengths = []
+        self.indiv = []
+        staff_limit = len(data['staff'])
+        for cover in data['cover']:
+            if cover['day'] == day:
+                shifts_lengths.append(cover['requirement'])
+            else:
+                day += 1
+                self.indiv.append(ScheduleDay(shifts_lengths, staff_limit))
+                shifts_lengths = [cover['requirement']]
+    def __str__(self):
+        return f'(Schedule): {[str(sday) for sday in self.indiv]}'
+
 class NurseRosteringGA:
     def __init__(self,
         problem_instance,
@@ -14,6 +61,7 @@ class NurseRosteringGA:
         penalities_weights=[100] * 10
     ):
         assert len(penalities_weights) == 10
+        self.data = problem_instance
         self.staff_num = len(problem_instance['staff'])
         self.days_num = problem_instance['len_day']
         # Number of covers to choose a staff to
@@ -52,8 +100,7 @@ class NurseRosteringGA:
 
     def generate_individual(self):
         """ Create a random candidate solution. """
-        return np.random.randint(low=0, high=self.staff_num, size=(self.individual_size,))
-
+        return Schedule(self.data)
 
     def objective_function(self, indiv):
         """
@@ -272,8 +319,8 @@ class NurseRosteringGA:
 
     def run(self):
         # ---- create initial population ----
-        population = [self.generate_individual() for _ in range(self.pop_size)]
-        print(len(population), population[0].shape)
+        population = [str(self.generate_individual()) for _ in range(1)]
+        print(population)
         # best = min(population, key=fitness)
         #
         # for gen in range(generations):
@@ -316,15 +363,14 @@ class NurseRosteringGA:
 # ============================================================
 
 if __name__ == "__main__":
-    data = parse_txt('./Instance1.txt')
+    data = parse_txt('./Instance4.txt')
     for key, value in data.items():
         if isinstance(value, list) and len(value) > 2:
             print(f"{key}: {value[:2]}")
         else:
             print(f"{key}: {value}")
     solver = NurseRosteringGA(data)
-    # solver.run()
-    print(solver.pen_maximum_shift_types(solver.generate_individual()))
+    solver.run()
     # best_solution = genetic_algorithm()
     # print("\nBest Solution Found:")
     # print(best_solution)
