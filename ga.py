@@ -47,6 +47,8 @@ class Schedule:
                 day += 1
                 self.indiv.append(ScheduleDay(shifts_lengths, staff_limit))
                 shifts_lengths = [cover['requirement']]
+        self.indiv.append(ScheduleDay(shifts_lengths, staff_limit))
+        
     def __str__(self):
         return f'(Schedule): {[str(sday) for sday in self.indiv]}'
 
