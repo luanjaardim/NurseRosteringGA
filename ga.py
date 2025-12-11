@@ -271,25 +271,22 @@ class NurseRosteringGA:
         """
         pass
 
-    def pen_shift_rotation(self, indiv):
+    def pen_shift_rotation(self, info_table, s: Schedule):
         """
         An employee working consecutive shifts that are not allowed to follow each other
         """
-        mat_shift_types = []
-        for _ in range(self.staff_num): mat_shift_types.append([set() for _ in range(self.days_num)])
-        for i, cover in enumerate(self.instance_data['cover']):
-            # each element of this matrix is a set of the shifts of an employee at some day
-            mat_shift_types[indiv[i]][cover['day']].add(cover['id'])
-
+        # TODO: Test this restriction
         penalties = 0
-        for i, cover in enumerate(self.instance_data['cover'][1:], start=1):
+        for i, cover in enumerate(self.data['cover'][1:], start=1):
             day = cover['day']
             shift = self.get_shift_from_id(cover['id'])
             if shift['cannot_follow']:
                 for s in shift['cannot_follow']:
-                    # verify if the worker worked this same shift 's' on the previous day
-                    if s in mat_shift_types[indiv[i]][day-1]:
-                        penalties += 1
+                    # verify if any worker worked this same shift 's' on the previous day
+                    if info_table[day-1].get(s) is not None:
+                        intersection = info_table[day-1][s] - info_table[day][cover['id']]
+                        print(intersection)
+                        penalties += len(intersection)
         return penalties
 
 
@@ -371,7 +368,7 @@ class NurseRosteringGA:
                     if 0 < consec_count < min_consec:
                         penal_under += min_consec - consec_count
                     consec_count = 0
-        return penal_over, penal_under
+        return penal_over, penal_under, penal_days_off
 
     def pen_working_weekends(self, indiv):
         """
