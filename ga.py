@@ -293,36 +293,37 @@ class NurseRosteringGA:
         return penalties
 
 
-    def pen_maximum_shift_types(self, indiv):
+    def pen_maximum_shift_types(self, info_table, s: Schedule):
         """
         An employee working more than the maximum allowed number of some shift type
         """
-        counter = np.zeros((self.staff_num, len(self.instance_data['shifts']),))
-        for i, cover in enumerate(self.instance_data['cover']):
-            # counts the number of each shift type for each worker
-            counter[indiv[i]][self.shift_to_index[cover['id']]] += 1
         penalties = 0
-        for emp in self.instance_data['staff']:
-            for (s_id, limit_) in emp['shift_limits']:
-                limit = int(limit_)
-                emp_index = self.employee_to_index[emp['id']]
-                shi_index = self.shift_to_index[s_id]
+        for emp in self.data['staff']:
+            limits = { s_id: {'cnt': 0, 'limit': int(limit_)} for (s_id, limit_) in emp['shift_limits'] }
+            for day in range(len(s.indiv)):
+                for (s_id, workers) in info_table[day].items():
+                    if s_id == 'day_workers': continue
+                    if self.employee_to_index[emp['id']] in workers:
+                        limits[s_id]['cnt'] += 1
 
-                # verify if the limit was reached
-                if counter[emp_index][shi_index] > limit:
-                    penalties += counter[emp_index][shi_index] - limit
+            for _, limit in limits.items():
+                if limit['cnt'] > limit['limit']:
+                    print(limit['cnt'] - limit['limit'])
+                    penalties += limit['cnt'] - limit['limit']
+
         return penalties
 
-    def pen_min_max_working_time(self, indiv):
+    def pen_min_max_working_time(self, info_table, s: Schedule):
         """
         An employee working less than the minimum or more than the maximum allowed working time
         """
         counter = np.zeros((self.staff_num,))
-        for i, cover in enumerate(self.instance_data['cover']):
+        for i, cover in enumerate(self.data['cover']):
             shift = self.get_shift_from_id(cover['id'])
-            counter[indiv[i]] += shift['len']
+            for worker in info_table[cover['day']][cover['id']]:
+                counter[worker] += shift['len']
         penalties = 0
-        for emp in self.instance_data['staff']:
+        for emp in self.data['staff']:
             emp_index = self.employee_to_index[emp['id']]
             min_time = emp['min_minu']
             max_time = emp['max_minu']
