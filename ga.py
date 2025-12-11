@@ -199,7 +199,7 @@ class NurseRosteringGA:
         crossover_rate=0.7,
         mutation_rate=0.05,
         elitism=1,
-        penalities_weights=[100] * 10
+        penalities_weights=[2] * 10
     ):
         assert len(penalities_weights) == 10
         self.data = problem_instance
@@ -263,14 +263,6 @@ class NurseRosteringGA:
             prev_ind_gene += end_shift_workers
         return info_table
 
-    def objective_function(self, indiv):
-        """
-        Compute the objective value.
-        Lower is better (minimization).
-        Modify this function with your real objective.
-        """
-        pass
-
     def pen_shift_rotation(self, info_table, s: Schedule):
         """
         An employee working consecutive shifts that are not allowed to follow each other
@@ -285,7 +277,6 @@ class NurseRosteringGA:
                     # verify if any worker worked this same shift 's' on the previous day
                     if info_table[day-1].get(s) is not None:
                         intersection = info_table[day-1][s] - info_table[day][cover['id']]
-                        print(intersection)
                         penalties += len(intersection)
         return penalties
 
@@ -305,7 +296,6 @@ class NurseRosteringGA:
 
             for _, limit in limits.items():
                 if limit['cnt'] > limit['limit']:
-                    print(limit['cnt'] - limit['limit'])
                     penalties += limit['cnt'] - limit['limit']
 
         return penalties
@@ -411,58 +401,54 @@ class NurseRosteringGA:
                 penalties += 1
         return penalties
 
-    def constraint_penalty(individual):
+    def constraint_penalty(self, info_table, s: Schedule):
         """
         Compute penalties for violating constraints.
         Return 0 if no violations.
         Increase value for worse constraint violations.
         """
-        pass
+        return self.penalities_weights[0] * self.pen_maximum_shift_types(info_table, s) + \
+               self.penalities_weights[1] * self.pen_min_max_working_time(info_table, s)
 
+    def objective_function(self, info_table, s: Schedule):
+        """
+        Compute the objective value.
+        Lower is better (minimization).
+        Modify this function with your real objective.
+        """
+        bad_approval = 0
+        for req_on in self.data['requests']:
+            if self.employee_to_index[req_on['staff_id']] not in info_table[req_on['day']][req_on['shift_id']]:
+                bad_approval += req_on['weight']
+        for req_off in self.data['requests_off']:
+            if self.employee_to_index[req_off['staff_id']] in info_table[req_off['day']][req_off['shift_id']]:
+                bad_approval += req_off['weight']
+        return bad_approval
 
-    def fitness(individual):
+    def fitness(self, individual):
         """
         Final fitness = objective + penalties.
         """
-        pass
-        # return objective_function(individual) + constraint_penalty(individual)
+        info_table = self.compute_indiv_info(individual)
+        return self.objective_function(info_table, individual) + self.constraint_penalty(info_table, individual)
 
 
     # ============================================================
     #   2. Genetic Operators (Selection, Crossover, Mutation)
     # ============================================================
 
-    def tournament_selection(population, k=3):
+    def tournament_selection(self, population, k=3):
         """Pick best of k random individuals."""
-        pass
-        # candidates = random.sample(population, k)
-        # return min(candidates, key=fitness)
+        candidates = random.sample(population, k)
+        return min(candidates, key=self.fitness)
 
-
-    def crossover(parent1, parent2, rate=0.7):
-        """Uniform crossover."""
-        pass
-        # if random.random() > rate:
-        #     return parent1[:], parent2[:]
-        #
-        # child1, child2 = [], []
-        # for a, b in zip(parent1, parent2):
-        #     if random.random() < 0.5:
-        #         child1.append(a); child2.append(b)
-        #     else:
-        #         child1.append(b); child2.append(a)
-        #
-        # return child1, child2
-
-
-    def mutate(individual, rate=0.05):
-        """Random reset mutation."""
-        # for i in range(len(individual)):
-        #     if random.random() < rate:
-        #         individual[i] = random.randint(0, 10)    # modify with your domain
-        # return individual
-        pass
-
+    def crossover(self, p1: Schedule, p2):
+        if random.random() > self.crossover_rate:
+            if random.random() > 0.5:
+                return p1.crossover_order_individual(p2)
+            else:
+                return p1.crossover_cycle_individual(p2)
+        return p1, p2
 
     # ============================================================
     #   3. Main GA Loop
@@ -470,43 +456,33 @@ class NurseRosteringGA:
 
     def run(self):
         # ---- create initial population ----
-        population = [str(self.generate_individual()) for _ in range(1)]
-        print(population)
-        # best = min(population, key=fitness)
-        #
-        # for gen in range(generations):
-        #
-        #     new_population = []
-        #
-        #     # ---- elitism: keep best individuals ----
-        #     sorted_pop = sorted(population, key=fitness)
-        #     new_population.extend(sorted_pop[:elitism])
-        #
-        #     # ---- create new individuals ----
-        #     while len(new_population) < pop_size:
-        #         p1 = tournament_selection(population)
-        #         p2 = tournament_selection(population)
-        #
-        #         c1, c2 = crossover(p1, p2, crossover_rate)
-        #
-        #         c1 = mutate(c1, mutation_rate)
-        #         c2 = mutate(c2, mutation_rate)
-        #
-        #         new_population.append(c1)
-        #         if len(new_population) < pop_size:
-        #             new_population.append(c2)
-        #
-        #     population = new_population
-        #
-        #     # Track global best
-        #     gen_best = min(population, key=fitness)
-        #     if fitness(gen_best) < fitness(best):
-        #         best = gen_best
-        #
-        #     print(f"Gen {gen:4d} | Best = {fitness(best):.3f}")
-        #
-        # return best
-        pass
+        population = [self.generate_individual() for _ in range(self.pop_size)]
+
+        for gen in range(self.generations):
+            new_population = []
+
+            # ---- elitism: keep best individuals ----
+            # sorted_pop = sorted(population, key=self.fitness)
+
+            # ---- create new individuals ----
+            while len(new_population) < self.pop_size:
+                p1 = self.tournament_selection(population)
+                p2 = self.tournament_selection(population)
+
+                c1, c2 = self.crossover(p1, p2)
+
+                # TODO: mutation here
+
+                new_population.append(c1)
+                new_population.append(c2)
+
+            population = sorted(new_population, key=self.fitness)[:self.pop_size]
+
+            # Track global best
+            best = min(population, key=self.fitness)
+            print(f"Gen {gen:4d} | Best = {self.fitness(best):.3f}")
+
+        return best
 
 
 # ============================================================
