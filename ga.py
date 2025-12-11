@@ -9,6 +9,7 @@ class ScheduleDay:
         self.shifts_limits = shifts_requirements
         self.workers_num = sum(shifts_requirements)
         self.staff_limit = staff_limit
+        self.shifts_num = len(shifts_requirements)
         assert(self.workers_num <= self.staff_limit)
         if gene is None:
             self.gene = np.random.permutation(self.staff_limit)[:self.workers_num]
@@ -119,7 +120,6 @@ class ScheduleDay:
 
             return c1, c2
 
-
 class Schedule:
     def __init__(self, data, indiv=None):
         """ Create a random candidate solution. """
@@ -141,6 +141,15 @@ class Schedule:
             self.indiv = indiv
             assert(len(self.indiv) == data['len_day'])
             assert(all(map(lambda x: isinstance(x, ScheduleDay), self.indiv)))
+
+    def __str__(self):
+        return f'(Schedule): {[str(sday) for sday in self.indiv]}'
+
+    def print(self):
+        print("(Schedule): [")
+        for day in self.indiv:
+            print(f"\t{str(day)}")
+        print("]")
 
     def crossover_cycle_individual(self, other):
         """Faz OX dia a dia e cria um novo indivíduo"""
@@ -181,9 +190,6 @@ class Schedule:
         child1 = Schedule(self.data, c1_days)
         child2 = Schedule(self.data, c2_days)
         return child1, child2
-        
-    def __str__(self):
-        return f'(Schedule): {[str(sday) for sday in self.indiv]}'
 
 class NurseRosteringGA:
     def __init__(self,
@@ -201,7 +207,6 @@ class NurseRosteringGA:
         self.days_num = problem_instance['len_day']
         # Number of covers to choose a staff to
         self.individual_size = len(problem_instance['cover'])
-        self.instance_data = problem_instance
         self.pop_size = pop_size
         self.generations = generations
         self.crossover_rate = crossover_rate
@@ -227,15 +232,36 @@ class NurseRosteringGA:
     # ============================================================
     def get_shift_from_id(self, id):
         index = self.shift_to_index[id]
-        return self.instance_data['shifts'][index]
+        return self.data['shifts'][index]
 
     def get_employee_from_id(self, id):
         index = self.employee_to_index[id]
-        return self.instance_data['staff'][index]
+        return self.data['staff'][index]
 
     def generate_individual(self):
         """ Create a random candidate solution. """
         return Schedule(self.data)
+
+    def compute_indiv_info(self, s: Schedule):
+        info_table = [
+            dict() for _ in range(len(s.indiv))
+        ]
+        day = -1
+        prev_ind_gene = 0
+        s_ind = 0
+        for cover in self.data['cover']:
+            if day != cover['day']:
+                s_ind = 0
+                prev_ind_gene = 0
+                info_table[day]['day_workers'] = set(s.indiv[day].gene)
+                day = cover['day']
+            else:
+                s_ind += 1
+
+            end_shift_workers = s.indiv[day].shifts_limits[s_ind]
+            info_table[day][cover['id']] = set(s.indiv[day].gene[prev_ind_gene:prev_ind_gene + end_shift_workers])
+            prev_ind_gene += end_shift_workers
+        return info_table
 
     def objective_function(self, indiv):
         """
@@ -243,15 +269,7 @@ class NurseRosteringGA:
         Lower is better (minimization).
         Modify this function with your real objective.
         """
-
-    def pen_employee_working_more_per_day(self, indiv):
-        """
-        An employee working more than one shift per day, first constraint
-        """
-        counter = np.zeros((self.staff_num, self.days_num,))
-        for i, cover in enumerate(self.instance_data['cover']):
-            counter[indiv[i]][cover['day']] += 1
-        return np.sum(counter > 1) # Count the days that an employee works twice or more
+        pass
 
     def pen_shift_rotation(self, indiv):
         """
