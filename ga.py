@@ -2,52 +2,185 @@ from parse import parse_txt
 import random
 import numpy as np
 random.seed(42)
+np.random.seed(42)
 
 class ScheduleDay:
-    def __init__(self, shifts_requirements : list[int], staff_limit):
+    def __init__(self, shifts_requirements : list[int], staff_limit, gene=None):
         self.shifts_limits = shifts_requirements
         self.workers_num = sum(shifts_requirements)
         self.staff_limit = staff_limit
         assert(self.workers_num <= self.staff_limit)
-        self.gene = np.random.permutation(self.staff_limit)[:self.workers_num]
+        if gene is None:
+            self.gene = np.random.permutation(self.staff_limit)[:self.workers_num]
+        else:
+            assert(sum(shifts_requirements) == len(gene))
+            self.gene = gene
 
     def __str__(self):
         return f'(ScheduleDay {self.shifts_limits}) : {self.gene}'
 
-    def crossover_cycle(self, p1, p2):
-        pass
+    def crossover_cycle_day(self, other):
+        p1 = self.gene
+        p2 = other.gene
+        size = len(p1)
 
-    def crossover_order(self, p1, p2):
-        from random import randint
-        assert(len(p1.gene) == len(p2.gene))
-        limit = len(p1.gene)
-        lower = randint(0, limit-1)
-        upper = randint(lower + 1, limit)
-        c1 = self.__init__(p1.shifts_limits, p1.staff_limit)
-        c1.gene = np.copy(p1)
-        c2 = self.__init__(p2.shifts_limits, p2.staff_limit)
-        c2.gene = np.copy(p2)
+        #Corrigir valores faltantes
+        set1 = set(p1)
+        set2 = set(p2)
 
-        # TODO change c1 and c2 genes and return them
+        #valores que faltam em cada pai
+        faltando_em_p2 = list(set1 - set2)
 
-        return (c1, c2)
+        #criar listas auxiliares baseadas nos pais reais
+        p2_cycle = p2.copy()
+
+        #substituir valores em p2 para incluir todos os valores de p1
+        j = 0
+        for i in range(size):
+            if p2_cycle[i] not in set1:
+                p2_cycle[i] = faltando_em_p2[j]
+                j += 1
+
+        c1 = np.full(size, -1)
+        c2 = np.full(size, -1)
+
+        visited = set()
+        cycle_index = 0
+
+        #Vai percorrer os ciclos ate alcaçar a aquantidade
+        while len(visited) < size:
+
+            #Encontra a próxima posição ainda não visitado
+            start = next(i for i in range(size) if i not in visited)
+            index = start
+            cycle = []
+
+            #Construir ciclo ate que o index ja tenha sido visitado
+            while index not in visited:
+                cycle.append(index)
+                visited.add(index)
+
+                #valor em P2 na posição atual
+                #value = p2[index] #Se a gente mexer na 
+                value = p2_cycle[index]
+
+                #próxima posição = onde P1 tem esse mesmo valor
+                index = np.where(p1 == value)[0][0]
+
+            #Verificando qual a geração atual com o impar ou par para alterna a alimentação dos genes dos pais para os filhos
+            if cycle_index % 2 == 0:
+                #Ciclo par => P1 => C1
+                for i in cycle:
+                    c1[i] = p1[i]
+                    c2[i] = p2[i]
+            else:
+                #Ciclo ímpar => P2 => C1
+                for i in cycle:
+                    c1[i] = p2[i]
+                    c2[i] = p1[i]
+
+            cycle_index += 1
+
+        child1 = ScheduleDay(self.shifts_limits, self.staff_limit, c1)
+        child2 = ScheduleDay(other.shifts_limits, other.staff_limit, c2)
+
+        return child1, child2
+
+    def crossover_order_day(self, other):
+
+            size = len(self.gene) #p1_day.shifts_limits
+            c1_gene = np.full(size, -1)
+            c2_gene = np.full(size, -1)
+
+            #Definir intervalo [lower, upper)
+            lower = random.randint(0, size - 2)
+            upper = random.randint(lower + 1, size - 1)
+
+            #Copiar o bloco do pai correspondente para cada filho
+            c1_gene[lower:upper] = self.gene[lower:upper]
+            c2_gene[lower:upper] = other.gene[lower:upper]
+
+            #Posições vazias
+            fill_pos_c1 = [i for i in range(size) if c1_gene[i] == -1]
+            fill_pos_c2 = [i for i in range(size) if c2_gene[i] == -1]
+
+            #Genes restantes preservando ordem, verificar nos filhos quais trabalhadores ja foram atribuidos nos genes
+            p2_list = [g for g in other.gene if g not in c1_gene]
+            p1_list = [g for g in self.gene if g not in c2_gene]
+
+            for pi1, pos1 in enumerate(fill_pos_c1):
+                c1_gene[pos1] = p2_list[pi1]
+
+            for pi2, pos2 in enumerate(fill_pos_c2):
+                c2_gene[pos2] = p1_list[pi2]
+
+            c1 = ScheduleDay(self.shifts_limits, self.staff_limit, gene=c1_gene)
+            c2 = ScheduleDay(other.shifts_limits, other.staff_limit, gene=c2_gene)
+
+            return c1, c2
 
 
 class Schedule:
-    def __init__(self, data):
+    def __init__(self, data, indiv=None):
         """ Create a random candidate solution. """
-        day = 0
-        shifts_lengths = []
-        self.indiv = []
-        staff_limit = len(data['staff'])
-        for cover in data['cover']:
-            if cover['day'] == day:
-                shifts_lengths.append(cover['requirement'])
-            else:
-                day += 1
-                self.indiv.append(ScheduleDay(shifts_lengths, staff_limit))
-                shifts_lengths = [cover['requirement']]
-        self.indiv.append(ScheduleDay(shifts_lengths, staff_limit))
+        self.data = data
+        if indiv is None:
+            day = 0
+            shifts_lengths = []
+            self.indiv = []
+            staff_limit = len(data['staff'])
+            for cover in data['cover']:
+                if cover['day'] == day:
+                    shifts_lengths.append(cover['requirement'])
+                else:
+                    day += 1
+                    self.indiv.append(ScheduleDay(shifts_lengths, staff_limit))
+                    shifts_lengths = [cover['requirement']]
+            self.indiv.append(ScheduleDay(shifts_lengths, staff_limit))
+        else:
+            self.indiv = indiv
+            assert(len(self.indiv) == data['len_day'])
+            assert(all(map(lambda x: isinstance(x, ScheduleDay), self.indiv)))
+
+    def crossover_cycle_individual(self, other):
+        """Faz OX dia a dia e cria um novo indivíduo"""
+        c1_days = []
+        c2_days = []
+
+        #ambos têm o mesmo número de dias
+        for day_idx in range(len(self.indiv)):
+            p1_day = self.indiv[day_idx]
+            p2_day = other.indiv[day_idx]
+
+            c1_day, c2_day = p1_day.crossover_cycle_day(p2_day)
+
+            c1_days.append(c1_day)
+            c2_days.append(c2_day)
+
+        #cria novos individuos
+        child1 = Schedule(self.data, c1_days)
+        child2 = Schedule(other.data, c2_days)
+
+        return child1, child2
+
+    def crossover_order_individual(self, other):
+        c1_days = []
+        c2_days = []
+
+        #ambos têm o mesmo número de dias
+        for day_idx in range(len(self.indiv)):
+            p1_day = self.indiv[day_idx]
+            p2_day = other.indiv[day_idx]
+
+            c1_day, c2_day = p1_day.crossover_order_day(p2_day)
+
+            c1_days.append(c1_day)
+            c2_days.append(c2_day)
+
+        #cria novos individuos
+        child1 = Schedule(self.data, c1_days)
+        child2 = Schedule(self.data, c2_days)
+        return child1, child2
         
     def __str__(self):
         return f'(Schedule): {[str(sday) for sday in self.indiv]}'
