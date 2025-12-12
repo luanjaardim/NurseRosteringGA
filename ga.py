@@ -120,6 +120,19 @@ class ScheduleDay:
 
             return c1, c2
 
+    def mutate_swap(self):
+        fp, sp = random.randint(0, len(self.gene)-1), random.randint(0, len(self.gene)-1)
+        tmp = self.gene[fp]
+        self.gene[fp] = self.gene[sp]
+        self.gene[sp] = tmp
+
+    def mutate_insert(self):
+        l = [e for e in range(self.staff_limit) if e not in self.gene]
+        if len(l) == 0: return
+        new_worker = random.choice(l)
+        fp = random.randint(0, len(self.gene)-1)
+        self.gene[fp] = new_worker
+
 class Schedule:
     def __init__(self, data, indiv=None):
         """ Create a random candidate solution. """
@@ -150,6 +163,10 @@ class Schedule:
         for day in self.indiv:
             print(f"\t{str(day)}")
         print("]")
+
+    def mutate_individual(self):
+        for gene_day in self.indiv:
+            gene_day.mutate_insert()
 
     def crossover_cycle_individual(self, other):
         """Faz OX dia a dia e cria um novo indivíduo"""
