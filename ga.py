@@ -164,10 +164,6 @@ class Schedule:
             print(f"\t{str(day)}")
         print("]")
 
-    def mutate_individual(self):
-        for gene_day in self.indiv:
-            gene_day.mutate_insert()
-
     def crossover_cycle_individual(self, other):
         """Faz OX dia a dia e cria um novo indivíduo"""
         c1_days = []
@@ -467,6 +463,14 @@ class NurseRosteringGA:
                 return p1.crossover_cycle_individual(p2)
         return p1, p2
 
+    def mutate(self, s: Schedule):
+        for day in s.indiv:
+            if random.random() < self.mutation_rate:
+                if random.random() > 0.5:
+                    return day.mutate_insert()
+                else:
+                    return day.mutate_swap()
+
     # ============================================================
     #   3. Main GA Loop
     # ============================================================
@@ -474,12 +478,14 @@ class NurseRosteringGA:
     def run(self):
         # ---- create initial population ----
         population = [self.generate_individual() for _ in range(self.pop_size)]
+        new_population = []
+        best = None
 
         for gen in range(self.generations):
-            new_population = []
+            new_population.clear()
 
-            # ---- elitism: keep best individuals ----
-            # sorted_pop = sorted(population, key=self.fitness)
+            # ---- elitism: keep the best individual ----
+            # cur_best = min(population, key=self.fitness)
 
             # ---- create new individuals ----
             while len(new_population) < self.pop_size:
@@ -488,16 +494,19 @@ class NurseRosteringGA:
 
                 c1, c2 = self.crossover(p1, p2)
 
-                # TODO: mutation here
+                self.mutate(c1)
+                self.mutate(c2)
 
                 new_population.append(c1)
                 new_population.append(c2)
 
             population = sorted(new_population, key=self.fitness)[:self.pop_size]
+            # population.append(cur_best)
 
             # Track global best
             best = min(population, key=self.fitness)
-            print(f"Gen {gen:4d} | Best = {self.fitness(best):.3f}")
+            # print(f"Gen {gen:4d} | Best = {self.fitness(best)} | Prev Best: {self.fitness(cur_best)}")
+            print(f"Gen {gen:4d} | Best = {self.fitness(best)}")
 
         return best
 
