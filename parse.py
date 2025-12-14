@@ -59,7 +59,7 @@ def parse_txt(file_path):
                     'min_minu': int(min_minutes),
                     'max_cons_shifts': int(max_consec_shifts),
                     'min_cons_shifts': int(min_consec_shifts),
-                    'max_cons_off': int(min_consec_off),
+                    'min_cons_off': int(min_consec_off),
                     'max_weekends': int(max_weekends)
                 })
             case "DAYS_OFF":

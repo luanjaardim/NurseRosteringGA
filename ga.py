@@ -218,9 +218,9 @@ class NurseRosteringGA:
         crossover_rate=0.7,
         mutation_rate=0.05,
         elitism=1,
-        penalities_weights=[2] * 10
+        penalities_weights=[5] * 8
     ):
-        assert len(penalities_weights) == 10
+        assert len(penalities_weights) == 8
         self.data = problem_instance
         self.staff_num = len(problem_instance['staff'])
         self.days_num = problem_instance['len_day']
@@ -286,16 +286,15 @@ class NurseRosteringGA:
         """
         An employee working consecutive shifts that are not allowed to follow each other
         """
-        # TODO: Test this restriction
         penalties = 0
-        for i, cover in enumerate(self.data['cover'][1:], start=1):
+        for i, cover in enumerate(self.data['cover'][:-1]):
             day = cover['day']
             shift = self.get_shift_from_id(cover['id'])
             if shift['cannot_follow']:
                 for s in shift['cannot_follow']:
-                    # verify if any worker worked this same shift 's' on the previous day
-                    if info_table[day-1].get(s) is not None:
-                        intersection = info_table[day-1][s] - info_table[day][cover['id']]
+                    # verify if any worker is scheduled to work the shift 's' tomorrow
+                    if s in info_table[day+1]:
+                        intersection = info_table[day+1][s].intersection(info_table[day][shift['id']])
                         penalties += len(intersection)
         return penalties
 
@@ -341,7 +340,7 @@ class NurseRosteringGA:
                 penalties += counter[emp_index] - max_time
         return penalties
 
-    def pen_min_max_consec_working_days_and_consec_days_off(self, indiv) -> tuple[int, int, int]:
+    def pen_min_max_consec_working_days_and_consec_days_off(self, info_table, s: Schedule) -> tuple[int, int, int]:
         """
         An employee working more than the maximum allowed number of consecutive working days
         returns (penalty_over, penalty_under, penalty_days_off)
@@ -349,15 +348,10 @@ class NurseRosteringGA:
         2nd value: penalty for not reaching minimum consecutive working days
         3rd value: penalty for not reaching minimum consecutive days off
         """
-        mat_working_days = np.zeros((self.staff_num, self.days_num,))
-        for i, cover in enumerate(self.instance_data['cover']):
-            mat_working_days[indiv[i]][cover['day']] = 1
-
         penal_over = 0
         penal_under = 0
         penal_days_off = 0
-        for emp in self.instance_data['staff']:
-            emp_index = self.employee_to_index[emp['id']]
+        for emp in self.data['staff']:
             max_consec = emp['max_cons_shifts']
             min_consec = emp['min_cons_shifts']
             min_consec_days_off = emp['min_cons_off']
@@ -365,10 +359,8 @@ class NurseRosteringGA:
             consec_count = 0
             days_off_count = 0
             for day in range(self.days_num):
-                if mat_working_days[emp_index][day] == 1:
+                if emp['id'] in info_table[day]['day_workers']:
                     consec_count += 1
-                    if consec_count > max_consec:
-                        penal_over += consec_count - max_consec
                     if 0 < days_off_count < min_consec_days_off:
                         penal_days_off += min_consec_days_off - days_off_count
                     days_off_count = 0
@@ -376,48 +368,38 @@ class NurseRosteringGA:
                     days_off_count += 1
                     if 0 < consec_count < min_consec:
                         penal_under += min_consec - consec_count
+                    if consec_count > max_consec:
+                        penal_over += consec_count - max_consec
                     consec_count = 0
         return penal_over, penal_under, penal_days_off
 
-    def pen_working_weekends(self, indiv):
+    def pen_working_weekends(self, info_table, s: Schedule):
         """
         An employee working more than the maximum allowed number of weekends
         """
-        mat_working_days = np.zeros((self.staff_num, self.days_num,))
-        for i, cover in enumerate(self.instance_data['cover']):
-            mat_working_days[indiv[i]][cover['day']] = 1
-
         penalties = 0
-        for emp in self.instance_data['staff']:
-            emp_index = self.employee_to_index[emp['id']]
+        for emp in self.data['staff']:
             max_weekends = emp['max_weekends']
-
             weekend_count = 0
             for day in range(0, self.days_num, 7):
                 # assuming weekend is day 5 and 6 of each week
-                if (day + 5 < self.days_num and mat_working_days[emp_index][day + 5] == 1) \
-                   or (day + 6 < self.days_num and mat_working_days[emp_index][day + 6] == 1):
+                if (day + 5 < self.days_num and emp['id'] in info_table[day + 5]['day_workers']) \
+                   or (day + 6 < self.days_num and emp['id'] in info_table[day + 6]['day_workers']):
                     weekend_count += 1
             if weekend_count > max_weekends:
                 penalties += weekend_count - max_weekends
         return penalties
 
-    def pen_working_on_days_off(self, indiv):
+    def pen_working_on_days_off(self, info_table, s: Schedule):
         """
         An employee working on their days off
         """
-        mat_days_off = np.zeros((self.staff_num, self.days_num,))
-        for i, emp_off in enumerate(self.instance_data['days_off']):
-            emp_index = self.employee_to_index[emp_off['staff_id']]
-            for d in emp_off['days_off']:
-                mat_days_off[emp_index][d] = 1
-
         penalties = 0
-        for i, cover in enumerate(self.instance_data['cover']):
-            day = cover['day']
-            emp_index = indiv[i]
-            if mat_days_off[emp_index][day] == 1:
-                penalties += 1
+        for emp_off in self.data['days_off']:
+            for day_ in emp_off['days_off']:
+                day = int(day_)
+                if emp_off['staff_id'] in info_table[day]['day_workers']:
+                    penalties += 1
         return penalties
 
     def constraint_penalty(self, info_table, s: Schedule):
@@ -426,8 +408,13 @@ class NurseRosteringGA:
         Return 0 if no violations.
         Increase value for worse constraint violations.
         """
+        p, p2, p3 = self.pen_min_max_consec_working_days_and_consec_days_off(info_table, s)
         return self.penalities_weights[0] * self.pen_maximum_shift_types(info_table, s) + \
-               self.penalities_weights[1] * self.pen_min_max_working_time(info_table, s)
+               self.penalities_weights[1] * self.pen_min_max_working_time(info_table, s) + \
+               self.penalities_weights[2] * self.pen_shift_rotation(info_table, s) + \
+               self.penalities_weights[3] * self.pen_working_on_days_off(info_table, s) + \
+               self.penalities_weights[4] * self.pen_working_weekends(info_table, s) + \
+               self.penalities_weights[5] * p + self.penalities_weights[6] * p2 + self.penalities_weights[7] * p3
 
     def objective_function(self, info_table, s: Schedule):
         """
