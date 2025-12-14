@@ -47,7 +47,7 @@ def parse_txt(file_path):
                 data['len_day'] = int(e)
             case "SHIFTS":
                 s_id, minutes_len, cannot_follow = columns
-                cannot_follow = cannot_follow.split('|')
+                cannot_follow = [ s for s in cannot_follow.split('|') if s ]
                 data['shifts'].append({'id': s_id, 'len': int(minutes_len), 'cannot_follow': cannot_follow})
             case "STAFF":
                 st_id, max_shifts, max_minutes, min_minutes, max_consec_shifts, min_consec_shifts, min_consec_off, max_weekends = columns

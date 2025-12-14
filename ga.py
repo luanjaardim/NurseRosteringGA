@@ -20,6 +20,9 @@ class ScheduleDay:
     def __str__(self):
         return f'(ScheduleDay {self.shifts_limits}) : {self.gene}'
 
+    def clone(self):
+        return ScheduleDay(self.shifts_limits, self.staff_limit, np.copy(self.gene))
+
     def crossover_cycle_day(self, other):
         p1 = self.gene
         p2 = other.gene
@@ -157,6 +160,9 @@ class Schedule:
 
     def __str__(self):
         return f'(Schedule): {[str(sday) for sday in self.indiv]}'
+
+    def clone(self):
+        return Schedule(self.data, [ d.clone() for d in self.indiv])
 
     def print(self):
         print("(Schedule): [")
@@ -461,7 +467,7 @@ class NurseRosteringGA:
                 return p1.crossover_order_individual(p2)
             else:
                 return p1.crossover_cycle_individual(p2)
-        return p1, p2
+        return p1.clone(), p2.clone()
 
     def mutate(self, s: Schedule):
         for day in s.indiv:
@@ -517,12 +523,18 @@ class NurseRosteringGA:
 
 if __name__ == "__main__":
     data = parse_txt('./Instance4.txt')
-    for key, value in data.items():
-        if isinstance(value, list) and len(value) > 2:
-            print(f"{key}: {value[:2]}")
-        else:
-            print(f"{key}: {value}")
-    solver = NurseRosteringGA(data)
+    # for key, value in data.items():
+    #     if isinstance(value, list) and len(value) > 2:
+    #         print(f"{key}: {value[:2]}")
+    #     else:
+    #         print(f"{key}: {value}")
+    solver = NurseRosteringGA(data,
+        pop_size=50,
+        generations=200,
+        crossover_rate=0.7,
+        mutation_rate=0.05,
+        elitism=2,
+    )
     solver.run()
     # best_solution = genetic_algorithm()
     # print("\nBest Solution Found:")
