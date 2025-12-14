@@ -491,7 +491,7 @@ class NurseRosteringGA:
             new_population.clear()
 
             # ---- elitism: keep the best individual ----
-            # cur_best = min(population, key=self.fitness)
+            elite = sorted(population, key=self.fitness)[:self.elitism]
 
             # ---- create new individuals ----
             while len(new_population) < self.pop_size:
@@ -506,13 +506,16 @@ class NurseRosteringGA:
                 new_population.append(c1)
                 new_population.append(c2)
 
-            population = sorted(new_population, key=self.fitness)[:self.pop_size]
-            # population.append(cur_best)
+            final_pop = new_population + elite
+            values = np.array(list(map(lambda x: self.fitness(x), final_pop)))
+            probs = values / np.sum(values, dtype=float)
+            population = list(np.random.choice(final_pop, size=self.pop_size, replace=False, p=probs))
 
             # Track global best
             best = min(population, key=self.fitness)
             # print(f"Gen {gen:4d} | Best = {self.fitness(best)} | Prev Best: {self.fitness(cur_best)}")
-            print(f"Gen {gen:4d} | Best = {self.fitness(best)}")
+            # print(f"Gen {gen:4d} | Best = {self.fitness(best)}")
+            print(f"{self.fitness(best)},", end=' ')
 
         return best
 
