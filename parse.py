@@ -102,27 +102,6 @@ def parse_roster(file_path): #[ (c.tag, c.text) for c in ass ]
     #     ]
     return assignments
 
-
-def roster_to_flat_individual(roster, data):
-    """
-    Converte a solção do .roster para os vetores dia por dia usado pelo GA
-    """
-    staff_index  = { st['id']: i for i, st in enumerate(data['staff']) }
-
-    n_days = data['len_day']
-
-    #Verificar quando tiver mais de um turno
-    schedule = [[] for _ in range(n_days)]
-
-    for staf_a in roster:
-
-        day = staf_a['day']
-        st_id = staf_a['staff_id']
-
-        schedule[day].append(staff_index[st_id])
-
-    return schedule
-
 if __name__ == "__main__":
     d = parse_txt('Instance1.txt')
     import json

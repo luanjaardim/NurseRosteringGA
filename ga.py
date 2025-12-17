@@ -1,4 +1,4 @@
-from parse import parse_txt, parse_roster, roster_to_flat_individual
+from parse import parse_txt, parse_roster
 import random
 import numpy as np
 random.seed(42)
@@ -509,29 +509,19 @@ class NurseRosteringGA:
 
 def solution_individual(solution_path, data):
     parsed = parse_roster(solution_path)
-    indiv = roster_to_flat_individual(parsed, data)
-    staff_limit = len(data['staff'])
-    chromosome = []
+    nr = NurseRosteringGA(data)  # just to take the conversion between staff_id and index
+    s = Schedule(data) # random individual to be overwritten
+    for d in range(data['len_day']):
+        s.indiv[d].gene = []
+        s.indiv[d].shifts_limits.clear()
 
-    shifts = []
-    for index, i in enumerate(indiv):
-        shifts_limits = []
-        for cover in data['cover']:
-            if cover['day'] == index:
-                shifts_limits.append(cover['requirement'])
+    for cover in data['cover']:
+        workers = list(map(lambda y: nr.employee_to_index[y['staff_id']],
+                filter(lambda x: x['shift_id'] == cover['id'] and x['day'] == cover['day'], parsed)))
+        s.indiv[cover['day']].gene.extend(workers)
+        s.indiv[cover['day']].shifts_limits.append(len(workers))
 
-        shifts_limit = len(i)
-
-        crom = ScheduleDay([shifts_limit], staff_limit, gene=np.array(i, dtype=int))
-        chromosome.append(crom)
-        shifts.append(shifts_limits)
-
-    #Vou ter que passar por cada um ScheduleDay e atualiza na força o "shifts_limit"
-    for index, chro in enumerate(chromosome):
-        chro.shifts_limits = shifts[index]
-
-    return Schedule(data, chromosome)
-
+    return s
 
 # ============================================================
 #   4. Run GA
