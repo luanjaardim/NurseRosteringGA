@@ -1,4 +1,4 @@
-from parse import parse_txt
+from parse import parse_txt, parse_roster, roster_to_flat_individual
 import random
 import numpy as np
 random.seed(42)
@@ -210,6 +210,7 @@ class Schedule:
         child2 = Schedule(self.data, c2_days)
         return child1, child2
 
+PENAL_NUM = 8
 class NurseRosteringGA:
     def __init__(self,
         problem_instance,
@@ -218,9 +219,9 @@ class NurseRosteringGA:
         crossover_rate=0.7,
         mutation_rate=0.05,
         elitism=1,
-        penalities_weights=[5] * 8
+        penalities_weights=[5] * PENAL_NUM
     ):
-        assert len(penalities_weights) == 8
+        assert len(penalities_weights) == PENAL_NUM
         self.data = problem_instance
         self.staff_num = len(problem_instance['staff'])
         self.days_num = problem_instance['len_day']
@@ -505,6 +506,31 @@ class NurseRosteringGA:
             print(f"{self.fitness(best)},", end=' ')
 
         return best
+
+def solution_individual(solution_path, data):
+    parsed = parse_roster(solution_path)
+    indiv = roster_to_flat_individual(parsed, data)
+    staff_limit = len(data['staff'])
+    chromosome = []
+
+    shifts = []
+    for index, i in enumerate(indiv):
+        shifts_limits = []
+        for cover in data['cover']:
+            if cover['day'] == index:
+                shifts_limits.append(cover['requirement'])
+
+        shifts_limit = len(i)
+
+        crom = ScheduleDay([shifts_limit], staff_limit, gene=np.array(i, dtype=int))
+        chromosome.append(crom)
+        shifts.append(shifts_limits)
+
+    #Vou ter que passar por cada um ScheduleDay e atualiza na força o "shifts_limit"
+    for index, chro in enumerate(chromosome):
+        chro.shifts_limits = shifts[index]
+
+    return Schedule(data, chromosome)
 
 
 # ============================================================

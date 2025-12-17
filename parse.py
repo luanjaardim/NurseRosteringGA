@@ -1,5 +1,4 @@
-from textwrap import indent
-
+import xml.etree.ElementTree as ET
 
 def xml_to_dict(element):
     print(element.tag, element.attrib, element.text)
@@ -75,6 +74,54 @@ def parse_txt(file_path):
                 data['cover'].append({'day': int(day), 'id': sh_id, 'requirement': int(requirement), 'weight_under': int(weight_under), 'weight_over': int(weight_over)})
         i+=1
     return data
+
+
+def parse_roster(file_path): #[ (c.tag, c.text) for c in ass ]
+    tree = ET.parse(file_path)
+    root = tree.getroot()
+
+    assignments = []
+
+    for emp in root.findall('Employee'):
+        staff_id = emp.attrib['ID']
+
+        for ass in emp.findall('Assign'):
+            day = int(ass.find('Day').text)
+            shift = ass.find('Shift').text
+
+            assignments.append({
+                'staff_id': staff_id,
+                'day': day,
+                'shift_id': shift
+            })
+
+    #     [
+    #   {'staff_id': 'E1', 'day': 0, 'shift_id': 'D'},
+    #   {'staff_id': 'E2', 'day': 0, 'shift_id': 'N'},
+    #   ...
+    #     ]
+    return assignments
+
+
+def roster_to_flat_individual(roster, data):
+    """
+    Converte a solção do .roster para os vetores dia por dia usado pelo GA
+    """
+    staff_index  = { st['id']: i for i, st in enumerate(data['staff']) }
+
+    n_days = data['len_day']
+
+    #Verificar quando tiver mais de um turno
+    schedule = [[] for _ in range(n_days)]
+
+    for staf_a in roster:
+
+        day = staf_a['day']
+        st_id = staf_a['staff_id']
+
+        schedule[day].append(staff_index[st_id])
+
+    return schedule
 
 if __name__ == "__main__":
     d = parse_txt('Instance1.txt')
