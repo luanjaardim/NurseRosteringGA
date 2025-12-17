@@ -219,7 +219,7 @@ class NurseRosteringGA:
         crossover_rate=0.7,
         mutation_rate=0.05,
         elitism=1,
-        penalities_weights=[5] * PENAL_NUM
+        penalities_weights=[2] * PENAL_NUM
     ):
         assert len(penalities_weights) == PENAL_NUM
         self.data = problem_instance
@@ -465,6 +465,38 @@ class NurseRosteringGA:
                 else:
                     return day.mutate_swap()
 
+    def generate_neighbor(self, s: Schedule):
+        """Gera um vizinho aplicando uma mutação local"""
+        # TODO: Trocar por s.clone()
+        neighbor = s.clone()
+        #dia aleatório
+        day = random.choice(neighbor.indiv)
+
+        #tipo de movimento
+        if random.random() < 0.5:
+            day.mutate_swap()
+        else:
+            day.mutate_insert()
+
+        return neighbor
+
+    def hill_climbing(self, s: Schedule, max_iter=50):
+        """Hill Climbing simples"""
+        current = s
+        current_fit = self.fitness(current)
+
+        for _ in range(max_iter):
+            neighbor = self.generate_neighbor(current)
+            neighbor_fit = self.fitness(neighbor)
+
+            if neighbor_fit < current_fit:
+                current = neighbor
+                current_fit = neighbor_fit
+            else:
+                break  #otimo local
+
+        return current
+
     # ============================================================
     #   3. Main GA Loop
     # ============================================================
@@ -490,6 +522,9 @@ class NurseRosteringGA:
 
                 self.mutate(c1)
                 self.mutate(c2)
+
+                c1 = self.hill_climbing(c1, max_iter=100)
+                c2 = self.hill_climbing(c2, max_iter=100)
 
                 new_population.append(c1)
                 new_population.append(c2)
