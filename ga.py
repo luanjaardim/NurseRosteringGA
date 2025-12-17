@@ -550,13 +550,22 @@ def solution_individual(solution_path, data):
         s.indiv[d].gene = []
         s.indiv[d].shifts_limits.clear()
 
+    penalties = 0
     for cover in data['cover']:
         workers = list(map(lambda y: nr.employee_to_index[y['staff_id']],
                 filter(lambda x: x['shift_id'] == cover['id'] and x['day'] == cover['day'], parsed)))
+        length = len(workers) 
+        required = cover['requirement']
+        if length != required:
+            if length < required:
+                penalties += cover['weight_under']
+            else:
+                penalties += cover['weight_over']
         s.indiv[cover['day']].gene.extend(workers)
-        s.indiv[cover['day']].shifts_limits.append(len(workers))
+        s.indiv[cover['day']].shifts_limits.append(length)
 
-    return s
+    # penalty weight for not scheduling the required amount of workers is 2.5
+    return s, penalties * 2.5
 
 # ============================================================
 #   4. Run GA
