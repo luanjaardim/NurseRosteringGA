@@ -444,7 +444,7 @@ class NurseRosteringGA:
     #   2. Genetic Operators (Selection, Crossover, Mutation)
     # ============================================================
 
-    def tournament_selection(self, population, k=3):
+    def tournament_selection(self, population, k=5):
         """Pick best of k random individuals."""
         candidates = random.sample(population, k)
         return min(candidates, key=self.fitness)
@@ -529,16 +529,21 @@ class NurseRosteringGA:
                 new_population.append(c1)
                 new_population.append(c2)
 
-            final_pop = new_population + elite
-            values = np.array(list(map(lambda x: self.fitness(x), final_pop)))
+            # Roleta
+            values = np.array(list(map(lambda x: 1/(self.fitness(x)+1), new_population)))
             probs = values / np.sum(values, dtype=float)
-            population = list(np.random.choice(final_pop, size=self.pop_size, replace=False, p=probs))
+            population = list(np.random.choice(new_population, size=self.pop_size-len(elite), replace=False, p=probs))
+            # Add the elite from previous generation
+            population += elite
 
             # Track global best
             best = min(population, key=self.fitness)
             # print(f"Gen {gen:4d} | Best = {self.fitness(best)} | Prev Best: {self.fitness(cur_best)}")
             # print(f"Gen {gen:4d} | Best = {self.fitness(best)}")
             print(f"{self.fitness(best)},", end=' ')
+
+            if self.fitness(best) == 0:
+                break
 
         return best
 
@@ -565,29 +570,41 @@ def solution_individual(solution_path, data):
         s.indiv[cover['day']].shifts_limits.append(length)
 
     # penalty weight for not scheduling the required amount of workers is 2.5
-    return s, penalties * 2.5
+    return s, penalties * 2
 
 # ============================================================
 #   4. Run GA
 # ============================================================
 
 if __name__ == "__main__":
-    data = parse_txt('./Instance4.txt')
+    data = parse_txt('instances1_24solutions/Instance5.txt')
     # for key, value in data.items():
     #     if isinstance(value, list) and len(value) > 2:
     #         print(f"{key}: {value[:2]}")
     #     else:
     #         print(f"{key}: {value}")
+
+    sol, penal = solution_individual("instances1_24solutions/Solutions/XML/Instance5.Solution.1143.roster", data)
+    # sol.print()
     solver = NurseRosteringGA(data,
-        pop_size=50,
+        pop_size=100,
         generations=200,
         crossover_rate=0.7,
         mutation_rate=0.05,
-        elitism=2,
+        elitism=10,
     )
+    print(solver.fitness(sol))
+    print(penal)
     solver.run()
     # best_solution = genetic_algorithm()
     # print("\nBest Solution Found:")
     # print(best_solution)
     # print("Best Fitness:", fitness(best_solution))
 
+#análise das restricoes mais violadas
+#cruzamento, mutacao apenas
+#com busca local
+
+#instance 1, 4, 5, 9, 10, 16
+# buscar uma explicacao para em algumas instancias o nosso algoritmo ir pior
+# do que a solucao disponibilizada
