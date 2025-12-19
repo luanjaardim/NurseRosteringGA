@@ -294,7 +294,7 @@ class NurseRosteringGA:
             if shift['cannot_follow']:
                 for s in shift['cannot_follow']:
                     # verify if any worker is scheduled to work the shift 's' tomorrow
-                    if s in info_table[day+1]:
+                    if len(info_table) > day+1 and s in info_table[day+1]:
                         intersection = info_table[day+1][s].intersection(info_table[day][shift['id']])
                         penalties += len(intersection)
         return penalties
@@ -403,12 +403,21 @@ class NurseRosteringGA:
                     penalties += 1
         return penalties
 
-    def constraint_penalty(self, info_table, s: Schedule):
+    def constraint_penalty(self, info_table, s: Schedule, penalties_info=False):
         """
         Compute penalties for violating constraints.
         Return 0 if no violations.
         Increase value for worse constraint violations.
         """
+        if penalties_info:
+            print('\npenalties info:')
+            print(f'{self.pen_min_max_consec_working_days_and_consec_days_off(info_table, s)}')
+            print(f'{self.pen_maximum_shift_types(info_table, s)}')
+            print(f'{self.pen_min_max_working_time(info_table, s)}')
+            print(f'{self.pen_shift_rotation(info_table, s)}')
+            print(f'{self.pen_working_on_days_off(info_table, s)}')
+            print(f'{self.pen_working_weekends(info_table, s)}')
+
         p, p2, p3 = self.pen_min_max_consec_working_days_and_consec_days_off(info_table, s)
         return self.penalities_weights[0] * self.pen_maximum_shift_types(info_table, s) + \
                self.penalities_weights[1] * self.pen_min_max_working_time(info_table, s) + \
@@ -432,12 +441,12 @@ class NurseRosteringGA:
                 bad_approval += req_off['weight']
         return bad_approval
 
-    def fitness(self, individual):
+    def fitness(self, individual, penalties_info=False):
         """
         Final fitness = objective + penalties.
         """
         info_table = self.compute_indiv_info(individual)
-        return self.objective_function(info_table, individual) + self.constraint_penalty(info_table, individual)
+        return self.objective_function(info_table, individual) + self.constraint_penalty(info_table, individual, penalties_info)
 
 
     # ============================================================
@@ -577,14 +586,16 @@ def solution_individual(solution_path, data):
 # ============================================================
 
 if __name__ == "__main__":
-    data = parse_txt('instances1_24solutions/Instance5.txt')
+    data = parse_txt('instances1_24solutions/Instance9.txt')
     # for key, value in data.items():
     #     if isinstance(value, list) and len(value) > 2:
     #         print(f"{key}: {value[:2]}")
     #     else:
     #         print(f"{key}: {value}")
 
-    sol, penal = solution_individual("instances1_24solutions/Solutions/XML/Instance5.Solution.1143.roster", data)
+    sol, penal = solution_individual("instances1_24solutions/Solutions/XML/Instance9.Solution.439.roster", data)
+    # sol, penal = solution_individual("instances1_24solutions/Solutions/XML/Instance5.Solution.1143.roster", data)
+    # sol, penal = solution_individual("instances1_24solutions/Solutions/XML/Instance4.Solution.1716.roster", data)
     # sol.print()
     solver = NurseRosteringGA(data,
         pop_size=100,
@@ -593,9 +604,11 @@ if __name__ == "__main__":
         mutation_rate=0.05,
         elitism=10,
     )
-    print(solver.fitness(sol))
-    print(penal)
-    solver.run()
+    # print(solver.fitness(sol)+penal)
+    # exit(0)
+    # print(penal)
+    best = solver.run()
+    solver.fitness(best, penalties_info=True)
     # best_solution = genetic_algorithm()
     # print("\nBest Solution Found:")
     # print(best_solution)
